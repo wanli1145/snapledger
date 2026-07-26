@@ -15,7 +15,15 @@ export default function ReceiptCard({ parsed, onCancel, onSave }) {
     [items]
   );
   const scannedTotal = Number(parsed.total) || 0;
-  const mismatch = Math.abs(sum - scannedTotal) > 0.01 && scannedTotal > 0;
+  // 按整数分比较，任何 ≥1 分的差额都报警（浮点安全）
+  const mismatch =
+    scannedTotal > 0 &&
+    Math.round(sum * 100) !== Math.round(scannedTotal * 100);
+  // 金额为空/非法/负数时禁止入账，而不是静默按 0 记
+  const hasInvalid = items.some((it) => {
+    const n = Number(it.amount);
+    return it.amount === "" || !Number.isFinite(n) || n < 0;
+  });
 
   function updateItem(key, patch) {
     setItems((prev) =>
@@ -28,7 +36,7 @@ export default function ReceiptCard({ parsed, onCancel, onSave }) {
   }
 
   function handleSave() {
-    if (stamping || items.length === 0) return;
+    if (stamping || items.length === 0 || hasInvalid) return;
     setStamping(true);
     // 先盖章，1 秒后真正入账——仪式感即产品记忆点
     setTimeout(() => {
@@ -90,9 +98,15 @@ export default function ReceiptCard({ parsed, onCancel, onSave }) {
                     <input
                       className="line-input item-amount"
                       type="number"
+                      inputMode="decimal"
                       step="0.01"
                       min="0"
                       value={it.amount}
+                      aria-invalid={
+                        it.amount === "" ||
+                        !Number.isFinite(Number(it.amount)) ||
+                        Number(it.amount) < 0
+                      }
                       onChange={(e) =>
                         updateItem(it._key, { amount: e.target.value })
                       }
@@ -138,7 +152,12 @@ export default function ReceiptCard({ parsed, onCancel, onSave }) {
             <span>合计</span>
             <strong>¥{formatYuan(sum)}</strong>
           </div>
-          {mismatch && (
+          {hasInvalid && (
+            <p className="mismatch-note" role="alert">
+              ⚠ 有金额为空或非法（标红行），修正后才能入账
+            </p>
+          )}
+          {mismatch && !hasInvalid && (
             <p className="mismatch-note" role="alert">
               ⚠ 各行之和与小票合计 ¥{formatYuan(scannedTotal)} 不一致，请核对
             </p>
@@ -162,7 +181,7 @@ export default function ReceiptCard({ parsed, onCancel, onSave }) {
         <button
           className="btn primary"
           onClick={handleSave}
-          disabled={stamping || items.length === 0}
+          disabled={stamping || items.length === 0 || hasInvalid}
         >
           {stamping ? "盖章中…" : `确认入账 ¥${formatYuan(sum)}`}
         </button>

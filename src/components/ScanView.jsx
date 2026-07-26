@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ReceiptCard from "./ReceiptCard.jsx";
 import { DEMO_RECEIPTS } from "../lib/demoData.js";
 
@@ -26,23 +26,43 @@ export default function ScanView({ onSave }) {
   const [error, setError] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
+  // 竞态防护：请求序号 + 在途请求/定时器句柄。任何新扫描或取消都会使旧的作废。
+  const seqRef = useRef(0);
+  const abortRef = useRef(null);
+  const timerRef = useRef(null);
+
+  useEffect(
+    () => () => {
+      // 组件卸载：中止在途请求、清掉演示定时器，避免卸载后 setState
+      seqRef.current += 1;
+      abortRef.current?.abort();
+      clearTimeout(timerRef.current);
+    },
+    []
+  );
 
   const scanFile = useCallback(async (file) => {
     if (!file || !file.type.startsWith("image/")) {
       setError("请选择一张图片文件（JPG / PNG 均可）。");
       return;
     }
+    const seq = ++seqRef.current;
+    const ac = new AbortController();
+    abortRef.current = ac;
     setError(null);
     setPhase("scanning");
     try {
       const img = await downscaleImage(file);
+      if (seq !== seqRef.current) return;
       setPreview({ type: "photo", dataUrl: img.dataUrl });
       const resp = await fetch("/api/parse-receipt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: img.base64, mediaType: img.mediaType }),
+        signal: ac.signal,
       });
       const data = await resp.json();
+      if (seq !== seqRef.current) return;
       if (!resp.ok) {
         setPhase("idle");
         setPreview(null);
@@ -61,6 +81,7 @@ export default function ScanView({ onSave }) {
       setParsed(data.receipt);
       setPhase("confirm");
     } catch (e) {
+      if (e.name === "AbortError" || seq !== seqRef.current) return;
       console.error(e);
       setPhase("idle");
       setPreview(null);
@@ -69,17 +90,30 @@ export default function ScanView({ onSave }) {
   }, []);
 
   function scanDemo(demo) {
+    const seq = ++seqRef.current;
     setError(null);
     setPreview({ type: "demo", demo });
     setPhase("scanning");
     // 演示模式：本地假扫描，1.8 秒后返回预置结果——无 API key 也能完整演示
-    setTimeout(() => {
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      if (seq !== seqRef.current) return;
       setParsed(structuredClone(demo.parsed));
       setPhase("confirm");
     }, 1800);
   }
 
+  function cancelScan() {
+    seqRef.current += 1;
+    abortRef.current?.abort();
+    clearTimeout(timerRef.current);
+    setPhase("idle");
+    setPreview(null);
+  }
+
   function reset() {
+    seqRef.current += 1;
+    clearTimeout(timerRef.current);
     setPhase("idle");
     setPreview(null);
     setParsed(null);
@@ -104,12 +138,14 @@ export default function ScanView({ onSave }) {
         className={`dropzone ${dragOver ? "drag-over" : ""} ${phase === "scanning" ? "busy" : ""}`}
         onDragOver={(e) => {
           e.preventDefault();
-          setDragOver(true);
+          if (phase !== "scanning") setDragOver(true);
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => {
           e.preventDefault();
           setDragOver(false);
+          // 扫描中不接受新的拖放，避免并发识别错配
+          if (phase === "scanning") return;
           scanFile(e.dataTransfer.files?.[0]);
         }}
       >
@@ -122,11 +158,16 @@ export default function ScanView({ onSave }) {
               </div>
             ) : (
               <div className="scan-frame demo-frame">
-                <DemoPaper demo={preview.demo} />
+                {preview?.demo && <DemoPaper demo={preview.demo} />}
                 <div className="scan-beam" aria-hidden="true" />
               </div>
             )}
-            <p className="scanning-text">正在逐行识读小票…</p>
+            <p className="scanning-text" role="status">
+              正在逐行识读小票…
+            </p>
+            <button className="btn ghost small" onClick={cancelScan}>
+              取消
+            </button>
           </div>
         ) : (
           <>

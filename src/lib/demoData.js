@@ -97,11 +97,12 @@ function isoDate(d) {
 }
 
 export function buildSeedTransactions() {
-  const rand = mulberry32(20260726);
   const out = [];
   const today = new Date();
 
   for (let daysAgo = 59; daysAgo >= 0; daysAgo--) {
+    // 每天独立种子：同一 day-offset 的抽取结果与运行日期无关，真正可复现
+    const rand = mulberry32(20260726 + daysAgo);
     const d = new Date(today);
     d.setDate(d.getDate() - daysAgo);
     // 每天 0~3 笔：周末略多

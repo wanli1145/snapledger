@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { CATEGORIES, categoryOf, formatYuan } from "../lib/categories.js";
 
 function monthKeyOf(dateStr) {
@@ -10,7 +10,7 @@ function monthLabel(key) {
   return `${y} 年 ${Number(m)} 月`;
 }
 
-export default function Dashboard({ transactions, onRemove, onClearDemo }) {
+export default function Dashboard({ transactions, onRemove, onClearDemo, onGoScan }) {
   const months = useMemo(() => {
     const set = new Set(transactions.map((t) => monthKeyOf(t.date)).filter(Boolean));
     return [...set].sort().reverse();
@@ -50,7 +50,17 @@ export default function Dashboard({ transactions, onRemove, onClearDemo }) {
     return new Date(y, m, 0).getDate();
   }, [activeMonth]);
   const perDay = daysElapsed > 0 ? total / daysElapsed : 0;
-  const delta = prevTotal > 0 ? ((total - prevTotal) / prevTotal) * 100 : null;
+
+  // 环比按「上月同期」折算：当月只过了 N 天，就和上月前 N 天等比的量对比，
+  // 避免月初永远显示暴跌
+  const delta = useMemo(() => {
+    if (prevTotal <= 0) return null;
+    const [py, pm] = prevMonthKey.split("-").map(Number);
+    const daysInPrevMonth = new Date(py, pm, 0).getDate();
+    const prevComparable = prevTotal * Math.min(daysElapsed / daysInPrevMonth, 1);
+    if (prevComparable <= 0) return null;
+    return ((total - prevComparable) / prevComparable) * 100;
+  }, [prevTotal, prevMonthKey, daysElapsed, total]);
 
   // 按分类聚合（逐条明细，不是整单归类）
   const catSums = useMemo(() => {
@@ -66,7 +76,8 @@ export default function Dashboard({ transactions, onRemove, onClearDemo }) {
       .sort((a, b) => b.value - a.value);
   }, [monthTx]);
 
-  // 按日聚合（趋势图）
+  // 按日聚合（趋势图）。截断到「今天」与「最后一个有数据的日子」的较大者，
+  // 手工录入的未来日期不会被静默丢弃（保持图表与统计一致）
   const daily = useMemo(() => {
     const [y, m] = activeMonth.split("-").map(Number);
     const daysInMonth = new Date(y, m, 0).getDate();
@@ -78,7 +89,8 @@ export default function Dashboard({ transactions, onRemove, onClearDemo }) {
       const d = Number((t.date || "").slice(8, 10));
       if (d >= 1 && d <= daysInMonth) arr[d - 1].value += Number(t.total) || 0;
     }
-    return arr.slice(0, daysElapsed);
+    const lastDataDay = arr.reduce((mx, d) => (d.value > 0 ? d.day : mx), 0);
+    return arr.slice(0, Math.max(daysElapsed, lastDataDay));
   }, [monthTx, activeMonth, daysElapsed]);
 
   const hasDemo = transactions.some((t) => t.source === "demo");
@@ -88,7 +100,10 @@ export default function Dashboard({ transactions, onRemove, onClearDemo }) {
       <div className="empty-state">
         <div className="empty-art" aria-hidden="true">🧾</div>
         <h2>账本还是空的</h2>
-        <p>去「扫一扫」拍下第一张小票，或扫一张演示票看看效果。</p>
+        <p>拍下第一张小票，或先扫一张演示票看看效果。</p>
+        <button className="btn primary" onClick={onGoScan}>
+          去扫一扫
+        </button>
       </div>
     );
   }
@@ -96,12 +111,11 @@ export default function Dashboard({ transactions, onRemove, onClearDemo }) {
   return (
     <div className="dashboard">
       <div className="dash-toolbar">
-        <div className="month-picker" role="tablist" aria-label="选择月份">
-          {months.slice(0, 4).map((mk) => (
+        <div className="month-picker" role="group" aria-label="选择月份">
+          {months.map((mk) => (
             <button
               key={mk}
-              role="tab"
-              aria-selected={mk === activeMonth}
+              aria-pressed={mk === activeMonth}
               className={mk === activeMonth ? "month-btn active" : "month-btn"}
               onClick={() => setMonth(mk)}
             >
@@ -121,11 +135,17 @@ export default function Dashboard({ transactions, onRemove, onClearDemo }) {
         <StatTile label="记账笔数" value={`${count} 笔`} />
         <StatTile label="日均支出" value={`¥${formatYuan(perDay)}`} />
         <StatTile
-          label="环比上月"
+          label="环比上月同期"
           value={
-            delta === null ? "—" : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`
+            delta === null
+              ? "—"
+              : delta > 0
+                ? `↑ +${delta.toFixed(1)}%`
+                : delta < 0
+                  ? `↓ ${delta.toFixed(1)}%`
+                  : "0.0%"
           }
-          tone={delta === null ? "" : delta > 0 ? "bad" : "good"}
+          tone={delta === null || delta === 0 ? "" : delta > 0 ? "bad" : "good"}
         />
       </section>
 
@@ -167,7 +187,9 @@ function CategoryBars({ data, total }) {
         <li className="cat-bar-row" key={c.key}>
           <span className="cat-bar-name">
             <span className="cat-dot" style={{ background: c.color }} aria-hidden="true" />
-            {c.icon} {c.key}
+            <span className="truncate">
+              {c.icon} {c.key}
+            </span>
           </span>
           <span className="cat-bar-track">
             <span
@@ -185,9 +207,11 @@ function CategoryBars({ data, total }) {
   );
 }
 
-// 单序列日支出趋势：手写 SVG，2px 线 + 悬停十字线 + 提示框
+// 单序列日支出趋势：手写 SVG，2px 线 + 十字线提示。
+// 支持鼠标悬停、触摸滑动、键盘左右键；数据同时以隐藏表格提供给读屏。
 function TrendChart({ data, monthKey }) {
   const [hover, setHover] = useState(null);
+  const svgRef = useRef(null);
   const W = 520;
   const H = 200;
   const PAD = { top: 16, right: 12, bottom: 26, left: 44 };
@@ -209,24 +233,44 @@ function TrendChart({ data, monthKey }) {
 
   const ticks = [0, niceMax / 2, niceMax];
 
-  function onMove(e) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const px = ((e.clientX - rect.left) / rect.width) * W;
+  function hoverFromClientX(clientX) {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const px = ((clientX - rect.left) / rect.width) * W;
     const idx = Math.round(((px - PAD.left) / innerW) * (data.length - 1));
     if (idx >= 0 && idx < data.length) setHover(idx);
   }
 
+  function onKeyDown(e) {
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      setHover((h) => Math.min((h ?? -1) + 1, data.length - 1));
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      setHover((h) => Math.max((h ?? data.length) - 1, 0));
+    } else if (e.key === "Escape") {
+      setHover(null);
+    }
+  }
+
   const hoverD = hover !== null ? data[hover] : null;
+  const monthNum = Number(monthKey.slice(5));
 
   return (
     <div className="trend-wrap">
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
         className="trend-svg"
-        onMouseMove={onMove}
+        onMouseMove={(e) => hoverFromClientX(e.clientX)}
         onMouseLeave={() => setHover(null)}
+        onTouchStart={(e) => hoverFromClientX(e.touches[0].clientX)}
+        onTouchMove={(e) => hoverFromClientX(e.touches[0].clientX)}
+        tabIndex={0}
+        onKeyDown={onKeyDown}
+        onBlur={() => setHover(null)}
         role="img"
-        aria-label={`${monthLabel(monthKey)}每日支出趋势`}
+        aria-label={`${monthLabel(monthKey)}每日支出趋势，可用左右方向键逐日查看`}
       >
         {ticks.map((t) => (
           <g key={t}>
@@ -269,12 +313,31 @@ function TrendChart({ data, monthKey }) {
       {hoverD && (
         <div
           className="trend-tooltip"
-          style={{ left: `${(x(hover) / W) * 100}%` }}
+          aria-live="polite"
+          style={{
+            left: `clamp(56px, ${(x(hover) / W) * 100}%, calc(100% - 56px))`,
+          }}
         >
-          <span>{Number(monthKey.slice(5))} 月 {hoverD.day} 日</span>
+          <span>
+            {monthNum} 月 {hoverD.day} 日
+          </span>
           <strong>¥{formatYuan(hoverD.value)}</strong>
         </div>
       )}
+      {/* 读屏替代：完整数据表 */}
+      <table className="sr-only">
+        <caption>{monthLabel(monthKey)}每日支出</caption>
+        <tbody>
+          {data.map((d) => (
+            <tr key={d.day}>
+              <th scope="row">
+                {monthNum} 月 {d.day} 日
+              </th>
+              <td>¥{formatYuan(d.value)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -288,7 +351,7 @@ function niceCeil(v) {
 
 function TransactionList({ list, onRemove }) {
   const sorted = [...list].sort(
-    (a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt
+    (a, b) => (b.date || "").localeCompare(a.date || "") || b.createdAt - a.createdAt
   );
   if (sorted.length === 0) return <p className="chart-empty">本月还没有账单</p>;
 
@@ -306,7 +369,7 @@ function TransactionList({ list, onRemove }) {
               <span className="cat-dot big" style={{ background: mainCat.color }} aria-hidden="true" />
               <div className="tx-main">
                 <span className="tx-merchant">
-                  {t.merchant}
+                  <span className="truncate">{t.merchant}</span>
                   {t.source === "demo" && <i className="demo-chip">演示</i>}
                 </span>
                 <span className="tx-sub">

@@ -8,7 +8,7 @@
   --paper: #fbfbf8;
   --ink: #16201b;
   --ink-2: #55605a;
-  --muted: #8a9089;
+  --muted: #656d66; /* 加深保证小字对比度 ≥4.5:1（AA） */
   --hairline: rgba(22, 32, 27, 0.12);
   --brand: #175e46;
   --brand-deep: #0f4634;
@@ -387,7 +387,7 @@ button {
 }
 
 .paper-row.muted {
-  color: #9a9a95;
+  color: #6e6e69;
 }
 
 .paper-row.total {
@@ -567,9 +567,13 @@ button {
   margin-left: auto;
   border: 0;
   background: transparent;
-  color: #c5c5c0;
-  font-size: 12px;
-  padding: 2px 6px;
+  color: var(--ink-2);
+  font-size: 13px;
+  padding: 6px 10px;
+  margin-top: -4px;
+  margin-bottom: -4px;
+  min-width: 32px;
+  min-height: 32px;
   border-radius: 6px;
 }
 
@@ -939,13 +943,21 @@ button {
   border: 0;
   background: transparent;
   color: transparent;
-  padding: 4px 8px;
+  padding: 8px 10px;
+  min-width: 32px;
+  min-height: 32px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .tx-row:hover .tx-remove {
-  color: #c5c5c0;
+  color: var(--ink-2);
+}
+
+/* 键盘聚焦时删除按钮同样可见 */
+.tx-remove:focus-visible {
+  color: var(--bad);
+  background: #fdf1ef;
 }
 
 .tx-remove:hover {
@@ -956,7 +968,7 @@ button {
 /* 触屏设备没有 hover：删除按钮常显 */
 @media (hover: none) {
   .tx-remove {
-    color: #c5c5c0;
+    color: var(--ink-2);
   }
 }
 
@@ -1028,13 +1040,69 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scan-beam,
+  .scan-beam {
+    display: none; /* 不残留静态色块 */
+  }
   .seal,
   .toast,
-  .cat-bar-fill {
+  .cat-bar-fill,
+  .receipt-stamping,
+  .scanning-text::after {
     animation: none;
     transition: none;
   }
+  .btn:active,
+  .demo-card:hover {
+    transform: none;
+  }
+}
+
+/* ————— 工具类 ————— */
+.truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demo-chip {
+  flex: none;
+}
+
+.tx-amount {
+  white-space: nowrap;
+}
+
+/* 视觉隐藏但读屏可达 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.trend-svg:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.toast-action {
+  border: 0;
+  background: transparent;
+  color: #9fd6be;
+  font-weight: 700;
+  font-size: 13.5px;
+  margin-left: 12px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 @keyframes dots {

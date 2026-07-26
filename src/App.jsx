@@ -1,12 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ScanView from "./components/ScanView.jsx";
 import Dashboard from "./components/Dashboard.jsx";
+import { formatYuan } from "./lib/categories.js";
 import { loadTransactions, saveTransactions, clearDemoData, makeId } from "./lib/store.js";
 
 export default function App() {
   const [view, setView] = useState("scan");
   const [transactions, setTransactions] = useState(() => loadTransactions());
+  // toast: { message, action?: { label, fn } }
   const [toast, setToast] = useState(null);
+  const lastDeletedRef = useRef(null);
 
   useEffect(() => {
     saveTransactions(transactions);
@@ -14,7 +17,10 @@ export default function App() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2600);
+    const t = setTimeout(() => {
+      setToast(null);
+      lastDeletedRef.current = null; // 超时后放弃撤销暂存
+    }, 4000);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -31,17 +37,41 @@ export default function App() {
       createdAt: Date.now(),
     };
     setTransactions((prev) => [record, ...prev]);
-    setToast(`已入账 ¥${Number(receipt.total).toFixed(2)} · ${record.merchant}`);
+    setToast({ message: `已入账 ¥${formatYuan(receipt.total)} · ${record.merchant}` });
     setView("ledger");
   }
 
+  // 删除支持撤销：先暂存，toast 里给「撤销」入口
   function removeRecord(id) {
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
+    setTransactions((prev) => {
+      const idx = prev.findIndex((t) => t.id === id);
+      if (idx === -1) return prev;
+      lastDeletedRef.current = { record: prev[idx], index: idx };
+      return prev.filter((t) => t.id !== id);
+    });
+    setToast({
+      message: "已删除一条账单",
+      action: {
+        label: "撤销",
+        fn: () => {
+          const saved = lastDeletedRef.current;
+          if (saved) {
+            setTransactions((prev) => {
+              const next = [...prev];
+              next.splice(Math.min(saved.index, next.length), 0, saved.record);
+              return next;
+            });
+            lastDeletedRef.current = null;
+          }
+          setToast(null);
+        },
+      },
+    });
   }
 
   function handleClearDemo() {
     setTransactions((prev) => clearDemoData(prev));
-    setToast("演示数据已清除");
+    setToast({ message: "演示数据已清除" });
   }
 
   return (
@@ -57,12 +87,14 @@ export default function App() {
         <nav className="tabs" aria-label="主导航">
           <button
             className={view === "scan" ? "tab active" : "tab"}
+            aria-current={view === "scan" ? "page" : undefined}
             onClick={() => setView("scan")}
           >
             扫一扫
           </button>
           <button
             className={view === "ledger" ? "tab active" : "tab"}
+            aria-current={view === "ledger" ? "page" : undefined}
             onClick={() => setView("ledger")}
           >
             账本
@@ -78,13 +110,19 @@ export default function App() {
             transactions={transactions}
             onRemove={removeRecord}
             onClearDemo={handleClearDemo}
+            onGoScan={() => setView("scan")}
           />
         )}
       </main>
 
       {toast && (
         <div className="toast" role="status">
-          {toast}
+          {toast.message}
+          {toast.action && (
+            <button className="toast-action" onClick={toast.action.fn}>
+              {toast.action.label}
+            </button>
+          )}
         </div>
       )}
 
