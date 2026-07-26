@@ -3,6 +3,8 @@
 > **拍张小票，账就记好了。**
 > AI 视觉识别购物小票 → 逐行提取商品与金额 → 自动分类 → 消费仪表盘。
 
+**[English README](README.en.md)** · [演示视频脚本](DEMO_SCRIPT.md) · [路演稿](PITCH.md) · [报名指南](HACKATHONS.md)
+
 手动记账坚持不下来，不是因为懒，而是因为「每一笔都要打字」。小票管家把记账压缩成一个动作：**对着小票拍一张照**。剩下的——读出每件商品、分好类、算好合计、画出你这个月的钱花在哪——全部自动完成。
 
 ## ✨ 功能亮点
@@ -34,10 +36,12 @@
 
 ```bash
 npm install
-npm run dev        # 前端 http://localhost:5173 + 后端 :3801
+npm run dev        # 官网 http://localhost:5173 · 应用 /app.html · 后端 :3801
 ```
 
-打开 http://localhost:5173 即可。**不配置任何 key 就能用演示小票走完整流程。**
+打开 http://localhost:5173 是官网落地页，点「打开应用」进入应用。**不配置任何 key 就能用演示小票走完整流程。**
+
+手机浏览器里可「添加到主屏幕」安装为 App（PWA，首次加载后离线可开）。
 
 要识别真实小票照片，配置 Anthropic 凭证（任选其一）：
 
@@ -52,8 +56,10 @@ npm run dev
 生产部署（单进程）：
 
 ```bash
-npm run build && npm start   # Express 同时托管前端产物与 API
+npm run build && npm start   # Express 同时托管官网、应用与 API
 ```
+
+纯静态部署（Netlify / Vercel / GitHub Pages）：直接部署 `dist/` 目录——官网与演示票全流程**不需要后端**就能跑，只有真实照片识别需要 API 服务。
 
 ## 📁 目录结构
 

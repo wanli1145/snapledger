@@ -1,0 +1,14 @@
+{
+  "name": "小票管家 SnapLedger",
+  "short_name": "小票管家",
+  "description": "拍张小票，账就记好了。AI 识别购物小票，自动分类，消费仪表盘。",
+  "start_url": "/app.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#edefe9",
+  "theme_color": "#175e46",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

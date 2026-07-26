@@ -8,3 +8,10 @@ createRoot(document.getElementById("root")).render(
     <App />
   </React.StrictMode>
 );
+
+// PWA：仅生产构建注册，开发时不缓存以免干扰热更新
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}

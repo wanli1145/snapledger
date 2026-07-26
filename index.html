@@ -1,12 +1,246 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>小票管家 SnapLedger — 拍张小票，账就记好了</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>小票管家 SnapLedger — 拍张小票，账就记好了</title>
+  <meta name="description" content="AI 视觉识别购物小票，逐行提取商品与金额，自动分类，生成消费仪表盘。断网可演示，数据存本地。" />
+  <meta name="theme-color" content="#175e46" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <style>
+    :root {
+      --page: #edefe9;
+      --paper: #fbfbf8;
+      --ink: #16201b;
+      --ink-2: #55605a;
+      --muted: #656d66;
+      --hairline: rgba(22, 32, 27, 0.12);
+      --brand: #175e46;
+      --brand-deep: #0f4634;
+      --seal: #b5382a;
+      --sans: system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      --shadow: 0 1px 2px rgba(22, 32, 27, 0.06), 0 12px 32px rgba(22, 32, 27, 0.1);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.6;
+    }
+    a { color: inherit; }
+    :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+    .wrap { max-width: 1060px; margin: 0 auto; padding: 0 24px; }
+
+    /* 顶栏 */
+    .nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+    .brand-seal {
+      width: 42px; height: 42px; display: grid; place-items: center;
+      background: var(--brand); color: var(--paper);
+      font-size: 22px; font-weight: 800; border-radius: 10px;
+      box-shadow: inset 0 0 0 2px rgba(251, 251, 248, 0.35);
+    }
+    .brand-name { font-weight: 800; font-size: 17px; letter-spacing: 0.03em; }
+    .brand-name small { display: block; font-weight: 400; font-size: 11px; color: var(--ink-2); letter-spacing: 0.02em; }
+    .btn {
+      display: inline-block; border: 1px solid transparent; border-radius: 10px;
+      padding: 11px 24px; font-size: 15px; font-weight: 700; text-decoration: none;
+      transition: transform 0.1s, background 0.15s; cursor: pointer;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn.primary { background: var(--brand); color: var(--paper); }
+    .btn.primary:hover { background: var(--brand-deep); }
+    .btn.ghost { border-color: var(--hairline); color: var(--ink-2); }
+    .btn.ghost:hover { background: rgba(22, 32, 27, 0.05); }
+
+    /* Hero */
+    .hero { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items: center; padding: 56px 0 72px; }
+    .hero h1 { font-size: 46px; line-height: 1.2; margin: 0 0 16px; letter-spacing: 0.01em; }
+    .hero h1 em { font-style: normal; color: var(--brand); }
+    .hero .sub { font-size: 17px; color: var(--ink-2); margin: 0 0 28px; max-width: 30em; }
+    .hero-cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .hero-note { margin-top: 14px; font-size: 12.5px; color: var(--muted); }
+
+    /* Hero 小票 */
+    .hero-visual { display: flex; justify-content: center; }
+    .receipt {
+      position: relative; width: 300px; background: #fff;
+      font-family: var(--mono); font-size: 13px; color: #232323;
+      padding: 20px 18px 26px; border-radius: 4px 4px 0 0;
+      box-shadow: var(--shadow); transform: rotate(2deg);
+      overflow: hidden;
+    }
+    .receipt::after {
+      content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 8px;
+      background: linear-gradient(-45deg, var(--page) 5.6px, transparent 0),
+        linear-gradient(45deg, var(--page) 5.6px, transparent 0);
+      background-size: 14px 100%; background-repeat: repeat-x;
+    }
+    .r-head { text-align: center; font-weight: 700; margin-bottom: 8px; }
+    .r-rule { border-top: 1.5px dashed #c9c9c4; margin: 8px 0; }
+    .r-row { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; font-variant-numeric: tabular-nums; }
+    .r-row .cat { color: var(--muted); font-size: 11px; font-family: var(--sans); }
+    .r-total { font-weight: 700; font-size: 15px; }
+    .scan-beam {
+      position: absolute; left: 0; right: 0; top: 0; height: 52px; pointer-events: none;
+      background: linear-gradient(to bottom, rgba(23,94,70,0) 0%, rgba(23,94,70,0.14) 55%, rgba(23,94,70,0.5) 98%, rgba(23,94,70,0.85) 100%);
+      animation: beam 2.4s ease-in-out infinite;
+    }
+    @keyframes beam { 0% { transform: translateY(-60px); } 55% { transform: translateY(360px); } 100% { transform: translateY(-60px); } }
+    .seal-mark {
+      position: absolute; right: 16px; bottom: 44px;
+      color: var(--seal); border: 3px solid var(--seal); border-radius: 8px;
+      padding: 5px 10px; font-size: 17px; font-weight: 900;
+      letter-spacing: 0.24em; text-indent: 0.24em;
+      transform: rotate(-12deg); opacity: 0.85; mix-blend-mode: multiply;
+      font-family: var(--sans);
+    }
+
+    /* 三步 */
+    .steps { padding: 24px 0 8px; }
+    .steps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .step {
+      background: var(--paper); border: 1px solid var(--hairline); border-radius: 14px;
+      padding: 22px 22px 20px;
+    }
+    .step b { display: block; font-size: 16px; margin: 10px 0 6px; }
+    .step p { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+    .step-num {
+      display: inline-grid; place-items: center; width: 30px; height: 30px;
+      background: var(--brand); color: var(--paper); border-radius: 8px;
+      font-weight: 800; font-size: 14px;
+    }
+
+    /* 特性 */
+    .features { padding: 56px 0 8px; }
+    h2.sec { font-size: 26px; margin: 0 0 22px; }
+    .feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .feat {
+      background: var(--paper); border: 1px solid var(--hairline); border-radius: 14px;
+      padding: 20px;
+    }
+    .feat .ico { font-size: 22px; }
+    .feat b { display: block; margin: 8px 0 4px; font-size: 15px; }
+    .feat p { margin: 0; font-size: 13px; color: var(--ink-2); }
+
+    /* 技术条 */
+    .tech {
+      margin: 56px 0 0; background: var(--ink); color: var(--paper);
+      border-radius: 18px; padding: 30px 34px;
+      display: flex; gap: 28px; flex-wrap: wrap; justify-content: space-between; align-items: center;
+    }
+    .tech b { font-size: 17px; display: block; margin-bottom: 4px; }
+    .tech p { margin: 0; font-size: 13px; color: #b9c2bc; max-width: 46em; }
+    .tech .btn.primary { background: var(--paper); color: var(--ink); }
+
+    .footer { padding: 40px 0 44px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+
+    @media (max-width: 860px) {
+      .hero { grid-template-columns: 1fr; padding: 32px 0 48px; }
+      .hero h1 { font-size: 34px; }
+      .hero-visual { order: -1; }
+      .steps-grid, .feat-grid { grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .scan-beam { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="wrap nav">
+    <a class="brand" href="/">
+      <span class="brand-seal" aria-hidden="true">票</span>
+      <span class="brand-name">小票管家<small>SnapLedger</small></span>
+    </a>
+    <nav style="display:flex; gap:10px; align-items:center;">
+      <a class="btn ghost" href="https://github.com" aria-label="源码仓库">源码</a>
+      <a class="btn primary" href="/app.html">打开应用</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="wrap hero">
+      <div>
+        <h1>拍张小票，<br /><em>账就记好了</em>。</h1>
+        <p class="sub">
+          记账坚持不下来，不是因为懒，是因为每一笔都要打字。小票管家用 AI 视觉逐行识读购物小票——商品、金额、分类全部自动完成，你只负责拍照，和看报表。
+        </p>
+        <div class="hero-cta">
+          <a class="btn primary" href="/app.html">立即体验 →</a>
+          <a class="btn ghost" href="/app.html">先扫一张演示票</a>
+        </div>
+        <p class="hero-note">无需注册 · 数据存在你的浏览器 · 手机可「添加到主屏幕」当 App 用</p>
+      </div>
+      <div class="hero-visual" aria-hidden="true">
+        <div class="receipt">
+          <div class="r-head">永辉超市（软件园店）</div>
+          <div class="r-rule"></div>
+          <div class="r-row"><span>特仑苏纯牛奶 250ml*12</span><span>49.90</span></div>
+          <div class="r-row"><span class="cat">🥬 食品生鲜 · 自动分类</span></div>
+          <div class="r-row"><span>鲜鸡蛋 30 枚</span><span>16.80</span></div>
+          <div class="r-row"><span>上海青 500g</span><span>3.58</span></div>
+          <div class="r-row"><span>维达抽纸 3 层*20 包</span><span>32.90</span></div>
+          <div class="r-row"><span class="cat">🧻 日用百货 · 自动分类</span></div>
+          <div class="r-row"><span>立白洗洁精 1.1kg</span><span>9.90</span></div>
+          <div class="r-rule"></div>
+          <div class="r-row r-total"><span>合计</span><span>¥119.80</span></div>
+          <div class="seal-mark">已入账</div>
+          <div class="scan-beam"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap steps" aria-label="三步流程">
+      <div class="steps-grid">
+        <div class="step">
+          <span class="step-num">1</span>
+          <b>📷 拍一张</b>
+          <p>拖入或拍摄小票照片。皱了、斜了、光线差都能认。</p>
+        </div>
+        <div class="step">
+          <span class="step-num">2</span>
+          <b>✏️ 核一眼</b>
+          <p>识别结果以小票形态呈现，逐行可改名字、金额、分类。</p>
+        </div>
+        <div class="step">
+          <span class="step-num">3</span>
+          <b>🖋️ 盖个章</b>
+          <p>确认入账，红章落纸。仪表盘立刻告诉你钱去哪了。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap features">
+      <h2 class="sec">为什么是小票管家</h2>
+      <div class="feat-grid">
+        <div class="feat"><span class="ico">🔍</span><b>逐行识别，不是整单猜测</b><p>每件商品单独提取金额与品名，颗粒度比银行流水细一个数量级。</p></div>
+        <div class="feat"><span class="ico">🏷️</span><b>八类自动归档</b><p>食品生鲜、餐饮外卖、日用百货……AI 分好类，拿不准的一键改。</p></div>
+        <div class="feat"><span class="ico">📊</span><b>会说话的仪表盘</b><p>本月支出、分类构成、每日趋势、环比同期——一屏看清。</p></div>
+        <div class="feat"><span class="ico">🔒</span><b>数据不出浏览器</b><p>账目存在本地 localStorage，照片仅用于单次识别，不落库。</p></div>
+        <div class="feat"><span class="ico">🔌</span><b>断网也能演示</b><p>内置演示小票不走网络，随时随地展示完整流程。</p></div>
+        <div class="feat"><span class="ico">📱</span><b>可安装为 App</b><p>PWA 支持：手机浏览器「添加到主屏幕」，像原生应用一样打开。</p></div>
+      </div>
+    </section>
+
+    <section class="wrap">
+      <div class="tech">
+        <div>
+          <b>识别引擎：Claude 视觉 + 结构化输出</b>
+          <p>模型返回的不是一段话，而是被 JSON Schema 约束死的账目数据——金额一定是数字，分类只会落在枚举里。图表配色经色觉安全校验，触屏、键盘、读屏皆可用。</p>
+        </div>
+        <a class="btn primary" href="/app.html">打开应用</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap footer">
+    <span>© 2026 SnapLedger · MIT License</span>
+    <span>Built for hackathon · 识别引擎 Claude</span>
+  </footer>
+</body>
 </html>

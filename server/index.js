@@ -217,8 +217,14 @@ app.post("/api/parse-receipt", async (req, res) => {
 });
 
 // 生产模式：serve 构建产物，`npm run build && npm start` 即可单进程部署
+// `/` 是官网落地页，`/app`（或 /app.html）是应用
 const distDir = path.join(__dirname, "..", "dist");
 app.use(express.static(distDir));
+app.get("/app", (_req, res, next) => {
+  res.sendFile(path.join(distDir, "app.html"), (err) => {
+    if (err) next();
+  });
+});
 app.get(/^\/(?!api\/).*/, (_req, res, next) => {
   res.sendFile(path.join(distDir, "index.html"), (err) => {
     if (err) next();
