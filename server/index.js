@@ -11,7 +11,13 @@ const app = express();
 app.use(express.json({ limit: "25mb" }));
 
 // SDK 会自动解析凭证：ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN / `ant auth login` 的本地档案。
-const client = new Anthropic();
+// 惰性初始化：完全没有凭证时构造函数会抛错，不能让它在启动时炸掉服务——
+// 没有 key 也要能跑演示模式。
+let client = null;
+function getClient() {
+  if (!client) client = new Anthropic();
+  return client;
+}
 
 const CATEGORIES = [
   "食品生鲜",
@@ -80,7 +86,18 @@ app.post("/api/parse-receipt", async (req, res) => {
   }
 
   try {
-    const response = await client.messages.create({
+    let anthropic;
+    try {
+      anthropic = getClient();
+    } catch {
+      return res.status(401).json({
+        code: "no_auth",
+        message:
+          "未配置 Anthropic API key。设置 ANTHROPIC_API_KEY 环境变量后重启服务，或先用内置演示小票体验完整流程。",
+      });
+    }
+
+    const response = await anthropic.messages.create({
       model: "claude-opus-5",
       max_tokens: 16000,
       system: SYSTEM_PROMPT,

@@ -953,6 +953,13 @@ button {
   background: #fdf1ef;
 }
 
+/* 触屏设备没有 hover：删除按钮常显 */
+@media (hover: none) {
+  .tx-remove {
+    color: #c5c5c0;
+  }
+}
+
 /* ————— 空状态 / 提示 / 页脚 ————— */
 .empty-state {
   text-align: center;

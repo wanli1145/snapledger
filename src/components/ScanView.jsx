@@ -29,7 +29,7 @@ export default function ScanView({ onSave }) {
 
   const scanFile = useCallback(async (file) => {
     if (!file || !file.type.startsWith("image/")) {
-      setError("请选择一张图片文件（JPG / PNG / HEIC 截图均可）。");
+      setError("请选择一张图片文件（JPG / PNG 均可）。");
       return;
     }
     setError(null);
