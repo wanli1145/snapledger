@@ -28,7 +28,13 @@ self.addEventListener("fetch", (e) => {
       .catch(() =>
         caches
           .match(req)
-          .then((m) => m || (req.mode === "navigate" ? caches.match("/app.html") : undefined))
+          .then(
+            (m) =>
+              m ||
+              (req.mode === "navigate"
+                ? caches.match(self.registration.scope + "app.html")
+                : undefined)
+          )
       )
   );
 });

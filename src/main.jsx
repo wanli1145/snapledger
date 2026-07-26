@@ -12,6 +12,7 @@ createRoot(document.getElementById("root")).render(
 // PWA：仅生产构建注册，开发时不缓存以免干扰热更新
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    // BASE_URL 适配子路径部署（如 GitHub Pages）
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});
   });
 }

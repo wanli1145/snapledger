@@ -6,8 +6,8 @@
 
 ## 通用素材
 
-- **Repo URL**: `[你的 GitHub 仓库地址]`（记得 push 本项目并设为 public，About 区选 MIT license）
-- **Demo URL**: `[Netlify/Vercel 地址]`（演示票流程纯静态即可跑）
+- **Repo URL**: https://github.com/wanli1145/snapledger （已 public，About 区记得选 MIT license）
+- **Demo URL**: https://wanli1145.github.io/snapledger/ （GitHub Pages 自动部署；演示票流程纯静态可跑）
 - **Video URL**: `[YouTube 链接]`（按 DEMO_SCRIPT.md 录，≤3 分钟）
 
 **Elevator pitch（60 字内 tagline，二选一）**
