@@ -30,6 +30,7 @@ People don't abandon expense trackers because they're lazy — they abandon them
 ```
 
 - **Recognition engine**: Anthropic Claude (`claude-opus-5`) vision + **structured outputs** (`output_config.format` with a JSON Schema). The model's response is guaranteed-valid ledger JSON — amounts are always numbers, categories always land in the enum. No brittle regex post-processing, ever. Server-side `fallbacks: "default"` reroutes false-positive safety refusals automatically.
+- **CockroachDB cloud memory layer**: The offline demo still works locally; with `COCKROACH_DATABASE_URL`, transactions sync to CockroachDB Cloud. The project now uses two hackathon-required CockroachDB tools: **Managed MCP Server** (authorized for Claude Code read/write) and **Distributed Vector Indexing** (`receipt_items.embedding VECTOR(1024)` + `items_embedding_idx`), powering a spending-memory Q&A API.
 - **Charts**: zero chart libraries — hand-written SVG/CSS. The categorical palette is **CVD-validated** (adjacent-pair color-vision-deficiency ΔE ≥ 8), every bar carries a direct text label, and the trend chart is operable by mouse, touch, and keyboard, with a screen-reader data table.
 - **Frontend**: React 18 + Vite, responsive down to mobile, `prefers-reduced-motion` respected.
 

@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { CATEGORIES, categoryOf, formatYuan } from "../lib/categories.js";
+import MemoryAssistant from "./MemoryAssistant.jsx";
 
 function monthKeyOf(dateStr) {
   return (dateStr || "").slice(0, 7);
@@ -10,7 +11,7 @@ function monthLabel(key) {
   return `${y} 年 ${Number(m)} 月`;
 }
 
-export default function Dashboard({ transactions, onRemove, onClearDemo, onGoScan }) {
+export default function Dashboard({ transactions, cloudStatus, onRemove, onClearDemo, onGoScan }) {
   const months = useMemo(() => {
     const set = new Set(transactions.map((t) => monthKeyOf(t.date)).filter(Boolean));
     return [...set].sort().reverse();
@@ -159,6 +160,8 @@ export default function Dashboard({ transactions, onRemove, onClearDemo, onGoSca
           <TrendChart data={daily} monthKey={activeMonth} />
         </div>
       </section>
+
+      <MemoryAssistant cloudStatus={cloudStatus} />
 
       <section className="card tx-card">
         <h3 className="card-title">账单明细</h3>

@@ -6,7 +6,7 @@
   "description": "小票管家 SnapLedger — 拍张小票，账就记好了。AI 视觉识别购物小票，自动分类，生成消费仪表盘。",
   "scripts": {
     "dev": "concurrently -k -n server,web -c green,blue \"npm:dev:server\" \"npm:dev:web\"",
-    "dev:server": "node server/index.js",
+    "dev:server": "node --env-file-if-exists=.env server/index.js",
     "dev:web": "vite",
     "build": "vite build",
     "start": "node server/index.js"

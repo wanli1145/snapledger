@@ -2,6 +2,14 @@ import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Anthropic from "@anthropic-ai/sdk";
+import {
+  deleteTransaction,
+  hasDatabase,
+  insertTransaction,
+  listTransactions,
+  spendingMemoryAnswer,
+  syncTransactions,
+} from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // 用专属变量名，避免与开发工具注入的通用 PORT 冲突
@@ -96,7 +104,7 @@ app.get("/api/status", (_req, res) => {
   } catch {
     hasCredential = false;
   }
-  res.json({ ok: true, hasCredential });
+  res.json({ ok: true, hasCredential, hasDatabase: hasDatabase() });
 });
 
 const NO_AUTH_MESSAGE =
@@ -213,6 +221,77 @@ app.post("/api/parse-receipt", async (req, res) => {
     }
     console.error("parse-receipt failed:", err);
     return res.status(500).json({ code: "server_error", message: "服务器内部错误。" });
+  }
+});
+
+app.get("/api/transactions", async (_req, res) => {
+  try {
+    const transactions = await listTransactions();
+    if (!transactions) {
+      return res.json({ ok: true, source: "local", transactions: [] });
+    }
+    res.json({ ok: true, source: "cockroachdb", transactions });
+  } catch (err) {
+    console.error("list transactions failed:", err);
+    res.status(502).json({
+      code: "db_error",
+      message: "云端账本暂时不可用，已切回本地演示模式。",
+    });
+  }
+});
+
+app.post("/api/transactions", async (req, res) => {
+  try {
+    const saved = await insertTransaction(req.body?.transaction || req.body);
+    if (!saved) {
+      return res.status(503).json({
+        code: "db_not_configured",
+        message: "未配置云端账本，已保存在本地。",
+      });
+    }
+    res.json({ ok: true, transaction: saved });
+  } catch (err) {
+    console.error("insert transaction failed:", err);
+    res.status(502).json({ code: "db_error", message: "云端入账失败，已保存在本地。" });
+  }
+});
+
+app.delete("/api/transactions/:id", async (req, res) => {
+  try {
+    const deleted = await deleteTransaction(req.params.id);
+    res.json({ ok: true, deleted });
+  } catch (err) {
+    console.error("delete transaction failed:", err);
+    res.status(502).json({ code: "db_error", message: "云端删除失败。" });
+  }
+});
+
+app.post("/api/transactions/sync", async (req, res) => {
+  try {
+    const result = await syncTransactions(req.body?.transactions || []);
+    if (!result) {
+      return res.status(503).json({ code: "db_not_configured", message: "未配置云端账本。" });
+    }
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("sync transactions failed:", err);
+    res.status(502).json({ code: "db_error", message: "云端同步失败。" });
+  }
+});
+
+app.post("/api/memory/ask", async (req, res) => {
+  try {
+    const result = await spendingMemoryAnswer(req.body?.question);
+    if (!result) {
+      return res.status(503).json({
+        code: "db_not_configured",
+        message: "未配置 CockroachDB 记忆层。",
+      });
+    }
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("memory ask failed:", err);
+    res.status(502).json({ code: "db_error", message: "消费记忆查询失败。" });
   }
 });
 

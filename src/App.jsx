@@ -4,12 +4,58 @@ import Dashboard from "./components/Dashboard.jsx";
 import { formatYuan } from "./lib/categories.js";
 import { loadTransactions, saveTransactions, clearDemoData, makeId } from "./lib/store.js";
 
+async function jsonFetch(url, options = {}) {
+  const resp = await fetch(url, {
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    ...options,
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.message || `HTTP ${resp.status}`);
+  return data;
+}
+
 export default function App() {
   const [view, setView] = useState("scan");
   const [transactions, setTransactions] = useState(() => loadTransactions());
+  const [cloudStatus, setCloudStatus] = useState("checking"); // checking | online | local
   // toast: { message, action?: { label, fn } }
   const [toast, setToast] = useState(null);
   const lastDeletedRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCloud() {
+      try {
+        const status = await jsonFetch("/api/status");
+        if (!status.hasDatabase) {
+          if (!cancelled) setCloudStatus("local");
+          return;
+        }
+        const data = await jsonFetch("/api/transactions");
+        if (cancelled) return;
+        if (data.transactions?.length) {
+          setTransactions(data.transactions);
+        } else {
+          // 首次云端为空：把本地种子/已有账本同步上去，作为 CockroachDB 记忆层初始数据
+          const local = loadTransactions();
+          if (local.length) await jsonFetch("/api/transactions/sync", {
+            method: "POST",
+            body: JSON.stringify({ transactions: local }),
+          });
+          const after = await jsonFetch("/api/transactions");
+          if (!cancelled && after.transactions?.length) setTransactions(after.transactions);
+        }
+        if (!cancelled) setCloudStatus("online");
+      } catch (e) {
+        console.warn("cloud ledger unavailable:", e.message);
+        if (!cancelled) setCloudStatus("local");
+      }
+    }
+    loadCloud();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     saveTransactions(transactions);
@@ -24,10 +70,10 @@ export default function App() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  function addRecord(receipt) {
+  async function addRecord(receipt) {
     const today = new Date();
     const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-    const record = {
+    const localRecord = {
       id: makeId(),
       date: receipt.date || iso,
       merchant: receipt.merchant || "未知商家",
@@ -36,29 +82,67 @@ export default function App() {
       source: receipt.source || "scan",
       createdAt: Date.now(),
     };
+
+    let record = localRecord;
+    let cloudSaved = false;
+    if (cloudStatus === "online") {
+      try {
+        const data = await jsonFetch("/api/transactions", {
+          method: "POST",
+          body: JSON.stringify({ transaction: localRecord }),
+        });
+        record = data.transaction || localRecord;
+        cloudSaved = true;
+      } catch (e) {
+        console.warn("cloud save failed:", e.message);
+        setCloudStatus("local");
+      }
+    }
+
     setTransactions((prev) => [record, ...prev]);
-    setToast({ message: `已入账 ¥${formatYuan(receipt.total)} · ${record.merchant}` });
+    setToast({
+      message: `已入账 ¥${formatYuan(receipt.total)} · ${record.merchant}${cloudSaved ? " · 已写入 CockroachDB" : ""}`,
+    });
     setView("ledger");
   }
 
   // 删除支持撤销：先暂存，toast 里给「撤销」入口
-  function removeRecord(id) {
+  async function removeRecord(id) {
+    let deleted;
     setTransactions((prev) => {
       const idx = prev.findIndex((t) => t.id === id);
       if (idx === -1) return prev;
-      lastDeletedRef.current = { record: prev[idx], index: idx };
+      deleted = { record: prev[idx], index: idx };
+      lastDeletedRef.current = deleted;
       return prev.filter((t) => t.id !== id);
     });
+    if (cloudStatus === "online") {
+      jsonFetch(`/api/transactions/${id}`, { method: "DELETE" }).catch((e) =>
+        console.warn("cloud delete failed:", e.message)
+      );
+    }
     setToast({
       message: "已删除一条账单",
       action: {
         label: "撤销",
-        fn: () => {
+        fn: async () => {
           const saved = lastDeletedRef.current;
           if (saved) {
+            let restored = saved.record;
+            if (cloudStatus === "online") {
+              try {
+                const data = await jsonFetch("/api/transactions", {
+                  method: "POST",
+                  body: JSON.stringify({ transaction: saved.record }),
+                });
+                restored = data.transaction || saved.record;
+              } catch (e) {
+                console.warn("cloud restore failed:", e.message);
+              }
+            }
             setTransactions((prev) => {
               const next = [...prev];
-              next.splice(Math.min(saved.index, next.length), 0, saved.record);
+              next.splice(Math.min(saved.index, next.length), 0, restored);
               return next;
             });
             lastDeletedRef.current = null;
@@ -108,6 +192,7 @@ export default function App() {
         ) : (
           <Dashboard
             transactions={transactions}
+            cloudStatus={cloudStatus}
             onRemove={removeRecord}
             onClearDemo={handleClearDemo}
             onGoScan={() => setView("scan")}
@@ -127,7 +212,11 @@ export default function App() {
       )}
 
       <footer className="footer">
-        <span>本地存储 · 数据不出你的浏览器</span>
+        <span>
+          {cloudStatus === "online"
+            ? "CockroachDB 云端记忆层已连接"
+            : "本地存储 · 数据不出你的浏览器"}
+        </span>
         <span>识别引擎：Claude 视觉模型</span>
       </footer>
     </div>

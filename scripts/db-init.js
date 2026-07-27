@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+import { backfillEmbeddings } from "../server/db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const url = process.env.COCKROACH_DATABASE_URL;
@@ -38,6 +39,9 @@ try {
   const idx = await client.query(`SHOW INDEXES FROM receipt_items`);
   const hasVector = idx.rows.some((r) => r.index_name === "items_embedding_idx");
   console.log(hasVector ? "✅ 向量索引 items_embedding_idx 存在" : "⚠️ 向量索引缺失");
+
+  const backfilled = await backfillEmbeddings();
+  console.log(`✅ 已回填 ${backfilled} 条缺失 embedding 的明细`);
 } finally {
   await client.end();
 }

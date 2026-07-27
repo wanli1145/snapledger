@@ -29,6 +29,7 @@
 ```
 
 - **识别引擎**：Anthropic Claude（`claude-opus-5`）视觉能力 + **结构化输出**（`output_config.format` JSON Schema），保证返回的账目 JSON 永远合法、字段完整、分类只会落在枚举里——不需要脆弱的正则后处理。
+- **CockroachDB 云端记忆层**：本地 demo 可离线跑；配置 `COCKROACH_DATABASE_URL` 后，账目会同步到 CockroachDB Cloud。项目已启用两个比赛要求工具：**Managed MCP Server**（已授权 Claude Code 读写）+ **Distributed Vector Indexing**（`receipt_items.embedding VECTOR(1024)` + `items_embedding_idx`），并提供消费记忆问答 API。
 - **图表**：零图表库，手写 SVG/CSS。分类色板经过**色觉缺陷（CVD）安全校验**（相邻色对 ΔE ≥ 8），每根条都带文字标签，色盲用户同样可读。
 - **前端**：React 18 + Vite，手机/桌面自适应，支持 `prefers-reduced-motion`。
 

@@ -29,6 +29,13 @@
 - **要求**：≥2 个 CockroachDB 工具（托管 MCP Server / 向量索引）作记忆层 + ≥1 个 AWS 服务；开源 + 演示视频；18+ 全球
 - **改造路径**：小票识别结果作为「消费记忆」入 CockroachDB（按消费语义向量检索），识别走 **AWS Bedrock 上的 Claude（视觉代码几乎不用改，模型 ID 换成 `anthropic.` 前缀）**，升级叙事为「消费管家智能体」。
 - **奖金**：$8,750 现金。适合想在 8 月内快速拿结果。
+- **当前进度（2026-07-27）**：
+  - ✅ CockroachDB Cloud 集群已创建（Basic plan, ap-southeast-1, $400 免费试用，8/25 到期）
+  - ✅ 数据库已建好：`receipts` + `receipt_items` + `VECTOR(1024)` 向量列 + `items_embedding_idx` 向量索引
+  - ✅ Managed MCP Server 已授权 Claude Code（读写），两个 CockroachDB 工具就绪
+  - ✅ 消费记忆问答 API 已实测通过：SQL 聚合 + 向量检索能回答"咖啡花了多少"等语义问题
+  - ✅ 92 笔演示账目已同步到云端，仪表盘从 CockroachDB 读取
+  - ⏳ AWS 账号 + Bedrock 还未开通
 
 ## 💰 高风险高奖池备选：Build with Gemini XPRIZE
 
