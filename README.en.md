@@ -5,6 +5,8 @@
 
 **[中文版 README](README.md)** · MIT License
 
+AWS deployment guide: [Deploy to AWS App Runner](AWS_DEPLOY.md)
+
 People don't abandon expense trackers because they're lazy — they abandon them because **every entry requires typing**. SnapLedger collapses bookkeeping into a single action: **take a photo of the receipt**. Everything else — reading every line item, categorizing it, totaling it, and charting where your money went — happens automatically.
 
 ## ✨ Features

@@ -12,11 +12,17 @@ import {
 } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// 用专属变量名，避免与开发工具注入的通用 PORT 冲突
+// App Runner 通过 apprunner.yaml 把监听端口注入 SNAPLEDGER_PORT；本地默认 3801。
 const PORT = Number(process.env.SNAPLEDGER_PORT || 3801);
+const PUBLIC_DEMO = /^(1|true|yes)$/i.test(process.env.SNAPLEDGER_PUBLIC_DEMO || "");
 
 const app = express();
 app.use(express.json({ limit: "25mb" }));
+
+// App Runner 健康检查不能依赖外部 API 或数据库，否则短暂网络波动会触发错误重启。
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true });
+});
 
 // SDK 会自动解析凭证：ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN / `ant auth login` 的本地档案。
 // 惰性初始化：完全没有凭证时部分 SDK 版本会在构造时抛错，不能让它在启动时炸掉服务——
@@ -104,8 +110,24 @@ app.get("/api/status", (_req, res) => {
   } catch {
     hasCredential = false;
   }
-  res.json({ ok: true, hasCredential, hasDatabase: hasDatabase() });
+  res.json({
+    ok: true,
+    hasCredential,
+    hasDatabase: hasDatabase(),
+    cloudWritable: hasDatabase() && !PUBLIC_DEMO,
+    publicDemo: PUBLIC_DEMO,
+  });
 });
+
+function requireCloudWrite(_req, res, next) {
+  if (PUBLIC_DEMO) {
+    return res.status(403).json({
+      code: "public_demo_read_only",
+      message: "公开演示环境的云端账本为只读；本次修改仍会保存在当前浏览器。",
+    });
+  }
+  next();
+}
 
 const NO_AUTH_MESSAGE =
   "未配置 Anthropic 凭证。设置 ANTHROPIC_API_KEY 环境变量（或运行 ant auth login）后重启服务，或先用内置演示小票体验完整流程。";
@@ -240,7 +262,7 @@ app.get("/api/transactions", async (_req, res) => {
   }
 });
 
-app.post("/api/transactions", async (req, res) => {
+app.post("/api/transactions", requireCloudWrite, async (req, res) => {
   try {
     const saved = await insertTransaction(req.body?.transaction || req.body);
     if (!saved) {
@@ -256,7 +278,7 @@ app.post("/api/transactions", async (req, res) => {
   }
 });
 
-app.delete("/api/transactions/:id", async (req, res) => {
+app.delete("/api/transactions/:id", requireCloudWrite, async (req, res) => {
   try {
     const deleted = await deleteTransaction(req.params.id);
     res.json({ ok: true, deleted });
@@ -266,7 +288,7 @@ app.delete("/api/transactions/:id", async (req, res) => {
   }
 });
 
-app.post("/api/transactions/sync", async (req, res) => {
+app.post("/api/transactions/sync", requireCloudWrite, async (req, res) => {
   try {
     const result = await syncTransactions(req.body?.transactions || []);
     if (!result) {

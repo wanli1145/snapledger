@@ -18,6 +18,7 @@ export default function App() {
   const [view, setView] = useState("scan");
   const [transactions, setTransactions] = useState(() => loadTransactions());
   const [cloudStatus, setCloudStatus] = useState("checking"); // checking | online | local
+  const [cloudWritable, setCloudWritable] = useState(false);
   // toast: { message, action?: { label, fn } }
   const [toast, setToast] = useState(null);
   const lastDeletedRef = useRef(null);
@@ -31,11 +32,12 @@ export default function App() {
           if (!cancelled) setCloudStatus("local");
           return;
         }
+        if (!cancelled) setCloudWritable(Boolean(status.cloudWritable));
         const data = await jsonFetch("/api/transactions");
         if (cancelled) return;
         if (data.transactions?.length) {
           setTransactions(data.transactions);
-        } else {
+        } else if (status.cloudWritable) {
           // 首次云端为空：把本地种子/已有账本同步上去，作为 CockroachDB 记忆层初始数据
           const local = loadTransactions();
           if (local.length) await jsonFetch("/api/transactions/sync", {
@@ -85,7 +87,7 @@ export default function App() {
 
     let record = localRecord;
     let cloudSaved = false;
-    if (cloudStatus === "online") {
+    if (cloudStatus === "online" && cloudWritable) {
       try {
         const data = await jsonFetch("/api/transactions", {
           method: "POST",
@@ -116,7 +118,7 @@ export default function App() {
       lastDeletedRef.current = deleted;
       return prev.filter((t) => t.id !== id);
     });
-    if (cloudStatus === "online") {
+    if (cloudStatus === "online" && cloudWritable) {
       jsonFetch(`/api/transactions/${id}`, { method: "DELETE" }).catch((e) =>
         console.warn("cloud delete failed:", e.message)
       );
@@ -129,7 +131,7 @@ export default function App() {
           const saved = lastDeletedRef.current;
           if (saved) {
             let restored = saved.record;
-            if (cloudStatus === "online") {
+            if (cloudStatus === "online" && cloudWritable) {
               try {
                 const data = await jsonFetch("/api/transactions", {
                   method: "POST",
@@ -214,7 +216,7 @@ export default function App() {
       <footer className="footer">
         <span>
           {cloudStatus === "online"
-            ? "CockroachDB 云端记忆层已连接"
+            ? `CockroachDB 云端记忆层已连接${cloudWritable ? "" : " · 公开演示只读"}`
             : "本地存储 · 数据不出你的浏览器"}
         </span>
         <span>识别引擎：Claude 视觉模型</span>

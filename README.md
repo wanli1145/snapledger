@@ -5,6 +5,8 @@
 
 **[English README](README.en.md)** · [演示视频脚本](DEMO_SCRIPT.md) · [路演稿](PITCH.md) · [报名指南](HACKATHONS.md)
 
+AWS 参赛部署步骤：[AWS App Runner 部署指南](AWS_DEPLOY.md)
+
 手动记账坚持不下来，不是因为懒，而是因为「每一笔都要打字」。小票管家把记账压缩成一个动作：**对着小票拍一张照**。剩下的——读出每件商品、分好类、算好合计、画出你这个月的钱花在哪——全部自动完成。
 
 ## ✨ 功能亮点
@@ -59,6 +61,10 @@ npm run dev
 ```bash
 npm run build && npm start   # Express 同时托管官网、应用与 API
 ```
+
+AWS App Runner 部署使用仓库根目录的 `apprunner.yaml`。公开环境建议设置为只读云端
+Demo，避免匿名访客修改共享 CockroachDB 数据；完整控制台步骤见
+[AWS_DEPLOY.md](AWS_DEPLOY.md)。
 
 纯静态部署（Netlify / Vercel / GitHub Pages）：直接部署 `dist/` 目录——官网与演示票全流程**不需要后端**就能跑，只有真实照片识别需要 API 服务。
 
