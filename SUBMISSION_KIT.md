@@ -29,13 +29,13 @@
 **About the project 各栏**：
 
 - *Inspiration*: Expense apps die because entries require typing, and even AI scanners forget everything after each scan. We wanted an agent that **accumulates spending memory** — so every receipt makes it smarter.
-- *What it does*: Snap a receipt → Claude (on Amazon Bedrock) extracts line items via structured outputs → items are embedded and persisted to **CockroachDB with distributed vector indexing** as long-term memory → a chat agent answers semantic questions over your history ("how often did I order delivery this month?") and flags unusual spending, querying its memory through the **CockroachDB Managed MCP Server**.
-- *How we built it*: React/Vite front end; Node on AWS Lambda; Bedrock-hosted Claude for vision + embeddings; CockroachDB Cloud as the memory layer (vector search + MCP). Base receipt-scanning UI is our pre-existing open-source work (disclosed); the entire memory/agent layer was built during the submission period.
+- *What it does*: Snap a receipt → Claude extracts structured line items → items are embedded and persisted to **CockroachDB with distributed vector indexing** as long-term memory → a spending-memory agent answers semantic questions over the full history ("how often did I order delivery this month?"). The complete application is deployed as a container on AWS.
+- *How we built it*: React/Vite front end and Node/Express API packaged in Docker, stored in Amazon ECR, and deployed with Amazon ECS Express Mode (Fargate, Application Load Balancer, TLS, autoscaling, and CloudWatch Logs). CockroachDB Cloud provides vector search and persistent agent memory. Base receipt-scanning UI is our pre-existing open-source work (disclosed); the entire memory/agent layer was built during the submission period.
 - *Challenges / Accomplishments / What's next*: `[比赛期内如实填写]`
 - **"Which CockroachDB tools did you use and how"**: (1) Managed MCP Server — authorized in Claude Code for read/write access to the snapledger cluster; used for schema management, demo data seeding, and interactive database inspection. (2) Distributed Vector Indexing — every booked line item gets a vector embedding (current: reproducible hashing trick, swap-ready for AWS Bedrock embeddings) stored in `VECTOR(1024)` columns; the agent's spending-memory queries run on vector search (`<=>` operator) alongside SQL aggregation, answering questions like "how many coffees last month?"
-- **"Which AWS services"**: Amazon Bedrock (Claude vision + embeddings), AWS Lambda (API), Amazon S3 `[如实际使用]`.
+- **"Which AWS services"**: Amazon ECS Express Mode runs the complete public application on AWS Fargate; Amazon ECR stores the container image; an Application Load Balancer provides the public HTTPS endpoint; Amazon CloudWatch captures service logs and deployment metrics.
 
-**Built with**: `react` `vite` `node.js` `express` `cockroachdb` `amazon-bedrock` `aws-lambda` `claude` `mcp`
+**Built with**: `react` `vite` `node.js` `express` `cockroachdb` `amazon-ecs` `aws-fargate` `amazon-ecr` `cloudwatch` `claude` `mcp`
 
 ---
 
