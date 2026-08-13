@@ -18,6 +18,7 @@ People don't abandon expense trackers because they're lazy — they abandon them
 - **🔌 Offline demo mode** — Three built-in demo receipts run the full flow with zero network and zero API keys. Judges on hostile venue Wi-Fi? Covered.
 - **🔒 Local-first** — The ledger lives in `localStorage`; photos are used for a single recognition call and never stored.
 - **📱 Installable PWA** — "Add to Home Screen" on mobile; the app shell works offline after first load.
+- **🌐 Bilingual UI** — Switch the scanner, dashboard, and spending-memory agent between Chinese and English; the preference persists in the browser.
 
 ## 🏗️ Architecture
 

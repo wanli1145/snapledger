@@ -7,6 +7,15 @@ export const DEMO_RECEIPTS = [
     label: "超市采购",
     merchant: "永辉超市（软件园店）",
     hint: "生鲜 + 日用混合小票",
+    english: {
+      label: "Grocery receipt",
+      merchant: "Yonghui Supermarket",
+      hint: "Groceries + household items",
+      parsed: {
+        merchant: "Yonghui Supermarket (Software Park)",
+        items: ["Premium milk 250ml × 12", "Fresh eggs × 30", "Bok choy 500g", "Tomatoes 750g", "Vinda tissues × 20", "Liby dish soap 1.1kg"],
+      },
+    },
     parsed: {
       merchant: "永辉超市（软件园店）",
       date: "",
@@ -27,6 +36,15 @@ export const DEMO_RECEIPTS = [
     label: "咖啡小票",
     merchant: "瑞幸咖啡 luckin coffee",
     hint: "两杯下午茶",
+    english: {
+      label: "Coffee receipt",
+      merchant: "Luckin Coffee",
+      hint: "Two afternoon drinks",
+      parsed: {
+        merchant: "Luckin Coffee (Wangjing SOHO)",
+        items: ["Coconut latte (large, iced)", "Iced coconut latte (large)"],
+      },
+    },
     parsed: {
       merchant: "瑞幸咖啡（望京 SOHO 店）",
       date: "",
@@ -43,6 +61,15 @@ export const DEMO_RECEIPTS = [
     label: "便利店",
     merchant: "7-ELEVEn 便利店",
     hint: "加班夜宵 + 电池",
+    english: {
+      label: "Convenience store",
+      merchant: "7-ELEVEN",
+      hint: "Late-night snack + batteries",
+      parsed: {
+        merchant: "7-ELEVEN (Guomao)",
+        items: ["Oden combo, 4 pieces", "Ham & cheese sandwich", "Bottled water 550ml", "AA batteries, 2 pack"],
+      },
+    },
     parsed: {
       merchant: "7-ELEVEn（国贸店）",
       date: "",
@@ -57,6 +84,24 @@ export const DEMO_RECEIPTS = [
     },
   },
 ];
+
+export function localizedDemo(demo, locale) {
+  if (locale !== "en" || !demo.english) return demo;
+  return {
+    ...demo,
+    label: demo.english.label,
+    merchant: demo.english.merchant,
+    hint: demo.english.hint,
+    parsed: {
+      ...demo.parsed,
+      merchant: demo.english.parsed.merchant,
+      items: demo.parsed.items.map((item, index) => ({
+        ...item,
+        name: demo.english.parsed.items[index] || item.name,
+      })),
+    },
+  };
+}
 
 // —— 种子账目 ————————————————————————————————————————————————
 

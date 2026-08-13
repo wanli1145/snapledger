@@ -1,27 +1,35 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocale } from "../lib/i18n.jsx";
 
-const EXAMPLES = [
-  "这个月外卖花了多少？",
-  "上个月买过几次咖啡？",
-  "总结最近的消费习惯",
-];
+const EXAMPLES = {
+  zh: ["这个月外卖花了多少？", "上个月买过几次咖啡？", "总结最近的消费习惯"],
+  en: ["How much did I spend on delivery this month?", "How many coffees did I buy last month?", "Summarize my recent spending habits"],
+};
 
-async function askMemory(question) {
+async function askMemory(question, fallbackMessage) {
   const resp = await fetch("/api/memory/ask", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question }),
   });
   const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new Error(data.message || "查询失败");
+  if (!resp.ok) throw new Error(data.message || fallbackMessage);
   return data;
 }
 
 export default function MemoryAssistant({ cloudStatus }) {
-  const [question, setQuestion] = useState(EXAMPLES[0]);
+  const { locale, isEnglish } = useLocale();
+  const examples = EXAMPLES[locale];
+  const [question, setQuestion] = useState(() => examples[0]);
   const [answer, setAnswer] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    setQuestion(examples[0]);
+    setAnswer(null);
+    setError(null);
+  }, [locale]);
 
   async function submit(e) {
     e?.preventDefault();
@@ -29,7 +37,7 @@ export default function MemoryAssistant({ cloudStatus }) {
     setBusy(true);
     setError(null);
     try {
-      const data = await askMemory(question.trim());
+      const data = await askMemory(question.trim(), isEnglish ? "Query failed" : "查询失败");
       setAnswer(data);
     } catch (err) {
       setError(err.message);
@@ -43,14 +51,17 @@ export default function MemoryAssistant({ cloudStatus }) {
     <section className="card memory-card">
       <div className="memory-head">
         <div>
-          <h3 className="card-title">消费记忆助手</h3>
+          <h3 className="card-title">{isEnglish ? "Spending memory agent" : "消费记忆助手"}</h3>
           <p>
-            用 CockroachDB 作为长期消费记忆层：SQL 聚合 + 向量索引 schema 已就绪，
-            现在可以直接问账本。
+            {isEnglish
+              ? "CockroachDB is the long-term memory layer, combining SQL aggregation with distributed vector search."
+              : "用 CockroachDB 作为长期消费记忆层：SQL 聚合 + 向量索引 schema 已就绪，现在可以直接问账本。"}
           </p>
         </div>
         <span className={cloudStatus === "online" ? "memory-status online" : "memory-status"}>
-          {cloudStatus === "online" ? "CockroachDB 已连接" : "本地模式"}
+          {cloudStatus === "online"
+            ? (isEnglish ? "CockroachDB connected" : "CockroachDB 已连接")
+            : (isEnglish ? "Local mode" : "本地模式")}
         </span>
       </div>
 
@@ -58,16 +69,16 @@ export default function MemoryAssistant({ cloudStatus }) {
         <input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="问问你的消费记忆，比如：这个月外卖花了多少？"
+          placeholder={isEnglish ? "Ask your spending memory…" : "问问你的消费记忆，比如：这个月外卖花了多少？"}
           disabled={cloudStatus !== "online"}
         />
         <button className="btn primary" disabled={busy || cloudStatus !== "online"}>
-          {busy ? "查询中…" : "问账本"}
+          {busy ? (isEnglish ? "Searching…" : "查询中…") : (isEnglish ? "Ask memory" : "问账本")}
         </button>
       </form>
 
-      <div className="memory-examples" aria-label="示例问题">
-        {EXAMPLES.map((q) => (
+      <div className="memory-examples" aria-label={isEnglish ? "Example questions" : "示例问题"}>
+        {examples.map((q) => (
           <button
             key={q}
             type="button"
@@ -85,7 +96,7 @@ export default function MemoryAssistant({ cloudStatus }) {
           <strong>{answer.answer}</strong>
           {answer.rows?.length > 0 && (
             <details>
-              <summary>查看查询证据</summary>
+              <summary>{isEnglish ? "View query evidence" : "查看查询证据"}</summary>
               <pre>{JSON.stringify(answer.rows, null, 2)}</pre>
             </details>
           )}

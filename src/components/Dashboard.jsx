@@ -1,17 +1,21 @@
 import { useMemo, useRef, useState } from "react";
-import { CATEGORIES, categoryOf, formatYuan } from "../lib/categories.js";
+import { CATEGORIES, categoryLabel, categoryOf, formatYuan } from "../lib/categories.js";
 import MemoryAssistant from "./MemoryAssistant.jsx";
+import { useLocale } from "../lib/i18n.jsx";
 
 function monthKeyOf(dateStr) {
   return (dateStr || "").slice(0, 7);
 }
 
-function monthLabel(key) {
+function monthLabel(key, locale) {
   const [y, m] = key.split("-");
-  return `${y} 年 ${Number(m)} 月`;
+  return locale === "en"
+    ? new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(Number(y), Number(m) - 1, 1)))
+    : `${y} 年 ${Number(m)} 月`;
 }
 
 export default function Dashboard({ transactions, cloudStatus, onRemove, onClearDemo, onGoScan }) {
+  const { locale, isEnglish } = useLocale();
   const months = useMemo(() => {
     const set = new Set(transactions.map((t) => monthKeyOf(t.date)).filter(Boolean));
     return [...set].sort().reverse();
@@ -100,10 +104,10 @@ export default function Dashboard({ transactions, cloudStatus, onRemove, onClear
     return (
       <div className="empty-state">
         <div className="empty-art" aria-hidden="true">🧾</div>
-        <h2>账本还是空的</h2>
-        <p>拍下第一张小票，或先扫一张演示票看看效果。</p>
+        <h2>{isEnglish ? "Your ledger is empty" : "账本还是空的"}</h2>
+        <p>{isEnglish ? "Scan your first receipt or try a demo receipt." : "拍下第一张小票，或先扫一张演示票看看效果。"}</p>
         <button className="btn primary" onClick={onGoScan}>
-          去扫一扫
+          {isEnglish ? "Scan a receipt" : "去扫一扫"}
         </button>
       </div>
     );
@@ -112,7 +116,7 @@ export default function Dashboard({ transactions, cloudStatus, onRemove, onClear
   return (
     <div className="dashboard">
       <div className="dash-toolbar">
-        <div className="month-picker" role="group" aria-label="选择月份">
+        <div className="month-picker" role="group" aria-label={isEnglish ? "Choose month" : "选择月份"}>
           {months.map((mk) => (
             <button
               key={mk}
@@ -120,23 +124,23 @@ export default function Dashboard({ transactions, cloudStatus, onRemove, onClear
               className={mk === activeMonth ? "month-btn active" : "month-btn"}
               onClick={() => setMonth(mk)}
             >
-              {monthLabel(mk)}
+              {monthLabel(mk, locale)}
             </button>
           ))}
         </div>
         {hasDemo && (
           <button className="btn ghost small" onClick={onClearDemo}>
-            清除演示数据
+            {isEnglish ? "Clear demo data" : "清除演示数据"}
           </button>
         )}
       </div>
 
       <section className="stat-row">
-        <StatTile label="本月支出" value={`¥${formatYuan(total)}`} hero />
-        <StatTile label="记账笔数" value={`${count} 笔`} />
-        <StatTile label="日均支出" value={`¥${formatYuan(perDay)}`} />
+        <StatTile label={isEnglish ? "Monthly spending" : "本月支出"} value={`¥${formatYuan(total, locale)}`} hero />
+        <StatTile label={isEnglish ? "Transactions" : "记账笔数"} value={isEnglish ? `${count}` : `${count} 笔`} />
+        <StatTile label={isEnglish ? "Daily average" : "日均支出"} value={`¥${formatYuan(perDay, locale)}`} />
         <StatTile
-          label="环比上月同期"
+          label={isEnglish ? "vs. last month" : "环比上月同期"}
           value={
             delta === null
               ? "—"
@@ -152,11 +156,11 @@ export default function Dashboard({ transactions, cloudStatus, onRemove, onClear
 
       <section className="chart-grid">
         <div className="card">
-          <h3 className="card-title">分类构成</h3>
+          <h3 className="card-title">{isEnglish ? "Category breakdown" : "分类构成"}</h3>
           <CategoryBars data={catSums} total={total} />
         </div>
         <div className="card">
-          <h3 className="card-title">每日支出</h3>
+          <h3 className="card-title">{isEnglish ? "Daily spending" : "每日支出"}</h3>
           <TrendChart data={daily} monthKey={activeMonth} />
         </div>
       </section>
@@ -164,7 +168,7 @@ export default function Dashboard({ transactions, cloudStatus, onRemove, onClear
       <MemoryAssistant cloudStatus={cloudStatus} />
 
       <section className="card tx-card">
-        <h3 className="card-title">账单明细</h3>
+        <h3 className="card-title">{isEnglish ? "Transactions" : "账单明细"}</h3>
         <TransactionList list={monthTx} onRemove={onRemove} />
       </section>
     </div>
@@ -182,7 +186,8 @@ function StatTile({ label, value, hero, tone }) {
 
 // 分类横条：每行都有名称 + 金额直接标签，颜色只是身份的冗余通道
 function CategoryBars({ data, total }) {
-  if (data.length === 0) return <p className="chart-empty">本月还没有明细</p>;
+  const { locale, isEnglish } = useLocale();
+  if (data.length === 0) return <p className="chart-empty">{isEnglish ? "No line items this month" : "本月还没有明细"}</p>;
   const max = Math.max(...data.map((d) => d.value));
   return (
     <ul className="cat-bars">
@@ -191,7 +196,7 @@ function CategoryBars({ data, total }) {
           <span className="cat-bar-name">
             <span className="cat-dot" style={{ background: c.color }} aria-hidden="true" />
             <span className="truncate">
-              {c.icon} {c.key}
+              {c.icon} {categoryLabel(c, locale)}
             </span>
           </span>
           <span className="cat-bar-track">
@@ -201,7 +206,7 @@ function CategoryBars({ data, total }) {
             />
           </span>
           <span className="cat-bar-val">
-            ¥{formatYuan(c.value)}
+            ¥{formatYuan(c.value, locale)}
             <em>{total > 0 ? `${((c.value / total) * 100).toFixed(0)}%` : ""}</em>
           </span>
         </li>
@@ -213,13 +218,14 @@ function CategoryBars({ data, total }) {
 // 单序列日支出趋势：手写 SVG，2px 线 + 十字线提示。
 // 支持鼠标悬停、触摸滑动、键盘左右键；数据同时以隐藏表格提供给读屏。
 function TrendChart({ data, monthKey }) {
+  const { locale, isEnglish } = useLocale();
   const [hover, setHover] = useState(null);
   const svgRef = useRef(null);
   const W = 520;
   const H = 200;
   const PAD = { top: 16, right: 12, bottom: 26, left: 44 };
 
-  if (data.length === 0) return <p className="chart-empty">本月还没有记录</p>;
+  if (data.length === 0) return <p className="chart-empty">{isEnglish ? "No transactions this month" : "本月还没有记录"}</p>;
 
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
@@ -273,7 +279,7 @@ function TrendChart({ data, monthKey }) {
         onKeyDown={onKeyDown}
         onBlur={() => setHover(null)}
         role="img"
-        aria-label={`${monthLabel(monthKey)}每日支出趋势，可用左右方向键逐日查看`}
+        aria-label={isEnglish ? `Daily spending for ${monthLabel(monthKey, locale)}. Use left and right arrow keys to inspect each day.` : `${monthLabel(monthKey, locale)}每日支出趋势，可用左右方向键逐日查看`}
       >
         {ticks.map((t) => (
           <g key={t}>
@@ -296,7 +302,7 @@ function TrendChart({ data, monthKey }) {
           .filter((v, i, a) => a.indexOf(v) === i)
           .map((i) => (
             <text key={i} x={x(i)} y={H - 8} className="axis-text" textAnchor="middle">
-              {data[i].day} 日
+              {isEnglish ? data[i].day : `${data[i].day} 日`}
             </text>
           ))}
 
@@ -322,21 +328,21 @@ function TrendChart({ data, monthKey }) {
           }}
         >
           <span>
-            {monthNum} 月 {hoverD.day} 日
+            {isEnglish ? `${monthNum}/${hoverD.day}` : `${monthNum} 月 ${hoverD.day} 日`}
           </span>
-          <strong>¥{formatYuan(hoverD.value)}</strong>
+          <strong>¥{formatYuan(hoverD.value, locale)}</strong>
         </div>
       )}
       {/* 读屏替代：完整数据表 */}
       <table className="sr-only">
-        <caption>{monthLabel(monthKey)}每日支出</caption>
+        <caption>{isEnglish ? `Daily spending for ${monthLabel(monthKey, locale)}` : `${monthLabel(monthKey, locale)}每日支出`}</caption>
         <tbody>
           {data.map((d) => (
             <tr key={d.day}>
               <th scope="row">
-                {monthNum} 月 {d.day} 日
+                {isEnglish ? `${monthNum}/${d.day}` : `${monthNum} 月 ${d.day} 日`}
               </th>
-              <td>¥{formatYuan(d.value)}</td>
+              <td>¥{formatYuan(d.value, locale)}</td>
             </tr>
           ))}
         </tbody>
@@ -353,10 +359,11 @@ function niceCeil(v) {
 }
 
 function TransactionList({ list, onRemove }) {
+  const { locale, isEnglish } = useLocale();
   const sorted = [...list].sort(
     (a, b) => (b.date || "").localeCompare(a.date || "") || b.createdAt - a.createdAt
   );
-  if (sorted.length === 0) return <p className="chart-empty">本月还没有账单</p>;
+  if (sorted.length === 0) return <p className="chart-empty">{isEnglish ? "No transactions this month" : "本月还没有账单"}</p>;
 
   let lastDate = null;
   return (
@@ -373,19 +380,19 @@ function TransactionList({ list, onRemove }) {
               <div className="tx-main">
                 <span className="tx-merchant">
                   <span className="truncate">{t.merchant}</span>
-                  {t.source === "demo" && <i className="demo-chip">演示</i>}
+                  {t.source === "demo" && <i className="demo-chip">{isEnglish ? "Demo" : "演示"}</i>}
                 </span>
                 <span className="tx-sub">
-                  {mainCat.icon} {mainCat.key}
-                  {t.items?.length > 1 ? ` 等 ${t.items.length} 项` : ""}
+                  {mainCat.icon} {categoryLabel(mainCat, locale)}
+                  {t.items?.length > 1 ? (isEnglish ? ` + ${t.items.length - 1} more` : ` 等 ${t.items.length} 项`) : ""}
                 </span>
               </div>
-              <span className="tx-amount">-¥{formatYuan(t.total)}</span>
+              <span className="tx-amount">-¥{formatYuan(t.total, locale)}</span>
               <button
                 className="tx-remove"
                 onClick={() => onRemove(t.id)}
-                aria-label={`删除 ${t.merchant} 的账单`}
-                title="删除"
+                aria-label={isEnglish ? `Delete ${t.merchant}` : `删除 ${t.merchant} 的账单`}
+                title={isEnglish ? "Delete" : "删除"}
               >
                 ✕
               </button>

@@ -3,6 +3,7 @@ import ScanView from "./components/ScanView.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import { formatYuan } from "./lib/categories.js";
 import { loadTransactions, saveTransactions, clearDemoData, makeId } from "./lib/store.js";
+import { useLocale } from "./lib/i18n.jsx";
 
 async function jsonFetch(url, options = {}) {
   const resp = await fetch(url, {
@@ -15,6 +16,7 @@ async function jsonFetch(url, options = {}) {
 }
 
 export default function App() {
+  const { locale, setLocale, isEnglish } = useLocale();
   const [view, setView] = useState("scan");
   const [transactions, setTransactions] = useState(() => loadTransactions());
   const [cloudStatus, setCloudStatus] = useState("checking"); // checking | online | local
@@ -78,7 +80,7 @@ export default function App() {
     const localRecord = {
       id: makeId(),
       date: receipt.date || iso,
-      merchant: receipt.merchant || "未知商家",
+      merchant: receipt.merchant || (isEnglish ? "Unknown merchant" : "未知商家"),
       total: receipt.total,
       items: receipt.items,
       source: receipt.source || "scan",
@@ -103,7 +105,9 @@ export default function App() {
 
     setTransactions((prev) => [record, ...prev]);
     setToast({
-      message: `已入账 ¥${formatYuan(receipt.total)} · ${record.merchant}${cloudSaved ? " · 已写入 CockroachDB" : ""}`,
+      message: isEnglish
+        ? `Booked ¥${formatYuan(receipt.total, locale)} · ${record.merchant}${cloudSaved ? " · Saved to CockroachDB" : ""}`
+        : `已入账 ¥${formatYuan(receipt.total, locale)} · ${record.merchant}${cloudSaved ? " · 已写入 CockroachDB" : ""}`,
     });
     setView("ledger");
   }
@@ -124,9 +128,9 @@ export default function App() {
       );
     }
     setToast({
-      message: "已删除一条账单",
+      message: isEnglish ? "Transaction deleted" : "已删除一条账单",
       action: {
-        label: "撤销",
+        label: isEnglish ? "Undo" : "撤销",
         fn: async () => {
           const saved = lastDeletedRef.current;
           if (saved) {
@@ -157,35 +161,41 @@ export default function App() {
 
   function handleClearDemo() {
     setTransactions((prev) => clearDemoData(prev));
-    setToast({ message: "演示数据已清除" });
+    setToast({ message: isEnglish ? "Demo data cleared" : "演示数据已清除" });
   }
 
   return (
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <span className="brand-seal" aria-hidden="true">票</span>
+          <span className="brand-seal" aria-hidden="true">{isEnglish ? "S" : "票"}</span>
           <div className="brand-text">
-            <h1>小票管家</h1>
-            <p>SnapLedger · 拍张小票，账就记好了</p>
+            <h1>{isEnglish ? "SnapLedger" : "小票管家"}</h1>
+            <p>{isEnglish ? "Turn every receipt into memory" : "SnapLedger · 拍张小票，账就记好了"}</p>
           </div>
         </div>
-        <nav className="tabs" aria-label="主导航">
-          <button
-            className={view === "scan" ? "tab active" : "tab"}
-            aria-current={view === "scan" ? "page" : undefined}
-            onClick={() => setView("scan")}
-          >
-            扫一扫
-          </button>
-          <button
-            className={view === "ledger" ? "tab active" : "tab"}
-            aria-current={view === "ledger" ? "page" : undefined}
-            onClick={() => setView("ledger")}
-          >
-            账本
-          </button>
-        </nav>
+        <div className="topbar-controls">
+          <nav className="tabs" aria-label={isEnglish ? "Primary navigation" : "主导航"}>
+            <button
+              className={view === "scan" ? "tab active" : "tab"}
+              aria-current={view === "scan" ? "page" : undefined}
+              onClick={() => setView("scan")}
+            >
+              {isEnglish ? "Scan" : "扫一扫"}
+            </button>
+            <button
+              className={view === "ledger" ? "tab active" : "tab"}
+              aria-current={view === "ledger" ? "page" : undefined}
+              onClick={() => setView("ledger")}
+            >
+              {isEnglish ? "Ledger" : "账本"}
+            </button>
+          </nav>
+          <div className="language-switch" role="group" aria-label="Language">
+            <button className={locale === "zh" ? "active" : ""} onClick={() => setLocale("zh")} aria-pressed={locale === "zh"}>中文</button>
+            <button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")} aria-pressed={locale === "en"}>EN</button>
+          </div>
+        </div>
       </header>
 
       <main>
@@ -216,10 +226,12 @@ export default function App() {
       <footer className="footer">
         <span>
           {cloudStatus === "online"
-            ? `CockroachDB 云端记忆层已连接${cloudWritable ? "" : " · 公开演示只读"}`
-            : "本地存储 · 数据不出你的浏览器"}
+            ? isEnglish
+              ? `CockroachDB memory connected${cloudWritable ? "" : " · Public demo is read-only"}`
+              : `CockroachDB 云端记忆层已连接${cloudWritable ? "" : " · 公开演示只读"}`
+            : isEnglish ? "Local storage · Data stays in your browser" : "本地存储 · 数据不出你的浏览器"}
         </span>
-        <span>识别引擎：Claude 视觉模型</span>
+        <span>{isEnglish ? "Recognition: Claude vision" : "识别引擎：Claude 视觉模型"}</span>
       </footer>
     </div>
   );

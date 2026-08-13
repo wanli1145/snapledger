@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReceiptCard from "./ReceiptCard.jsx";
-import { DEMO_RECEIPTS } from "../lib/demoData.js";
+import { DEMO_RECEIPTS, localizedDemo } from "../lib/demoData.js";
+import { useLocale } from "../lib/i18n.jsx";
 
 // 客户端压图：长边不超过 2000px，JPEG 输出，控制上传体积与识别成本
 async function downscaleImage(file, maxEdge = 2000) {
@@ -20,6 +21,7 @@ async function downscaleImage(file, maxEdge = 2000) {
 }
 
 export default function ScanView({ onSave }) {
+  const { locale, isEnglish } = useLocale();
   const [phase, setPhase] = useState("idle"); // idle | scanning | confirm
   const [preview, setPreview] = useState(null); // dataUrl 或 demo 小票对象
   const [parsed, setParsed] = useState(null);
@@ -43,7 +45,7 @@ export default function ScanView({ onSave }) {
 
   const scanFile = useCallback(async (file) => {
     if (!file || !file.type.startsWith("image/")) {
-      setError("请选择一张图片文件（JPG / PNG 均可）。");
+      setError(isEnglish ? "Choose a JPG or PNG image." : "请选择一张图片文件（JPG / PNG 均可）。");
       return;
     }
     const seq = ++seqRef.current;
@@ -66,7 +68,7 @@ export default function ScanView({ onSave }) {
       if (!resp.ok) {
         setPhase("idle");
         setPreview(null);
-        setError(data.message || "识别失败，请重试。");
+        setError(data.message || (isEnglish ? "Recognition failed. Try again." : "识别失败，请重试。"));
         return;
       }
       if (!data.receipt.items || data.receipt.items.length === 0) {
@@ -74,7 +76,7 @@ export default function ScanView({ onSave }) {
         setPreview(null);
         setError(
           data.receipt.confidence_note ||
-            "没有从这张图片里读到账目，请确认拍的是小票。"
+            (isEnglish ? "No line items were found. Make sure the image is a receipt." : "没有从这张图片里读到账目，请确认拍的是小票。")
         );
         return;
       }
@@ -85,9 +87,9 @@ export default function ScanView({ onSave }) {
       console.error(e);
       setPhase("idle");
       setPreview(null);
-      setError("识别过程出错，请重试。");
+      setError(isEnglish ? "Something went wrong during recognition. Try again." : "识别过程出错，请重试。");
     }
-  }, []);
+  }, [isEnglish]);
 
   function scanDemo(demo) {
     const seq = ++seqRef.current;
@@ -153,7 +155,7 @@ export default function ScanView({ onSave }) {
           <div className="scanning-stage">
             {preview?.type === "photo" ? (
               <div className="scan-frame">
-                <img src={preview.dataUrl} alt="待识别的小票" />
+                <img src={preview.dataUrl} alt={isEnglish ? "Receipt awaiting recognition" : "待识别的小票"} />
                 <div className="scan-beam" aria-hidden="true" />
               </div>
             ) : (
@@ -163,26 +165,28 @@ export default function ScanView({ onSave }) {
               </div>
             )}
             <p className="scanning-text" role="status">
-              正在逐行识读小票…
+              {isEnglish ? "Reading the receipt line by line…" : "正在逐行识读小票…"}
             </p>
             <button className="btn ghost small" onClick={cancelScan}>
-              取消
+              {isEnglish ? "Cancel" : "取消"}
             </button>
           </div>
         ) : (
           <>
             <div className="dropzone-art" aria-hidden="true">🧾</div>
-            <h2>把小票拖进来，或</h2>
+            <h2>{isEnglish ? "Drop a receipt here, or" : "把小票拖进来，或"}</h2>
             <div className="dropzone-actions">
               <button
                 className="btn primary"
                 onClick={() => fileRef.current?.click()}
               >
-                选择照片
+                {isEnglish ? "Choose a photo" : "选择照片"}
               </button>
             </div>
             <p className="dropzone-hint">
-              支持 JPG / PNG · 皱了、斜了、光线差都能认 · 照片只用于本次识别
+              {isEnglish
+                ? "JPG / PNG · Wrinkled, tilted, or dim is fine · Photos are used only for this scan"
+                : "支持 JPG / PNG · 皱了、斜了、光线差都能认 · 照片只用于本次识别"}
             </p>
             <input
               ref={fileRef}
@@ -202,7 +206,7 @@ export default function ScanView({ onSave }) {
         <div className="error-bar" role="alert">
           <span>{error}</span>
           <button className="btn ghost small" onClick={() => setError(null)}>
-            知道了
+            {isEnglish ? "Dismiss" : "知道了"}
           </button>
         </div>
       )}
@@ -210,11 +214,13 @@ export default function ScanView({ onSave }) {
       {phase !== "scanning" && (
         <section className="demo-shelf">
           <div className="demo-shelf-head">
-            <h3>没带小票？先扫一张演示票</h3>
-            <p>演示票不走网络请求，评委断网也能看完整流程</p>
+            <h3>{isEnglish ? "No receipt? Try a demo" : "没带小票？先扫一张演示票"}</h3>
+            <p>{isEnglish ? "Demo receipts work offline and show the complete flow" : "演示票不走网络请求，评委断网也能看完整流程"}</p>
           </div>
           <div className="demo-grid">
-            {DEMO_RECEIPTS.map((demo) => (
+            {DEMO_RECEIPTS.map((sourceDemo) => {
+              const demo = localizedDemo(sourceDemo, locale);
+              return (
               <button
                 key={demo.id}
                 className="demo-card"
@@ -226,7 +232,8 @@ export default function ScanView({ onSave }) {
                   <em>{demo.hint}</em>
                 </span>
               </button>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
@@ -236,6 +243,7 @@ export default function ScanView({ onSave }) {
 
 // 用 CSS 画一张热敏小票（演示票的"照片"）
 function DemoPaper({ demo, compact }) {
+  const { isEnglish } = useLocale();
   const rows = compact ? demo.parsed.items.slice(0, 3) : demo.parsed.items;
   return (
     <div className={`paper ${compact ? "paper-compact" : ""}`}>
@@ -254,7 +262,7 @@ function DemoPaper({ demo, compact }) {
       )}
       <div className="paper-rule" />
       <div className="paper-row total">
-        <span className="paper-name">合计</span>
+        <span className="paper-name">{isEnglish ? "TOTAL" : "合计"}</span>
         <span className="paper-amt">¥{demo.parsed.total.toFixed(2)}</span>
       </div>
     </div>

@@ -216,6 +216,7 @@ export async function spendingMemoryAnswer(question) {
   if (!db) return null;
   const q = String(question || "").trim();
   const lower = q.toLowerCase();
+  const wantsEnglish = /[a-z]/i.test(q) && !/[\p{Script=Han}]/u.test(q);
 
   const semanticRows = await vectorSearch(q, 8);
   const semanticTotal = semanticRows.reduce((a, r) => a + Number(r.amount || 0), 0);
@@ -254,10 +255,25 @@ export async function spendingMemoryAnswer(question) {
       LIMIT 5
     `, params);
     const total = rows.reduce((a, r) => a + Number(r.total), 0);
+    const topCategory = rows[0]?.category;
+    const categoryEn = {
+      食品生鲜: "groceries",
+      餐饮外卖: "dining and delivery",
+      日用百货: "household items",
+      交通出行: "transport",
+      服饰美妆: "fashion and beauty",
+      医疗健康: "health",
+      娱乐休闲: "entertainment",
+      其他: "other spending",
+    }[topCategory] || topCategory;
     return {
       answer: rows.length
-        ? `最近账本里最主要的消费是 ${rows[0].category}（¥${rows[0].total.toFixed(2)}）。前 ${rows.length} 类合计 ¥${total.toFixed(2)}。向量检索还找到了 ${semanticRows.length} 条语义相近明细，可作为消费记忆证据。`
-        : "还没有足够账目可总结。先扫几张小票试试。",
+        ? wantsEnglish
+          ? `Your largest recent category is ${categoryEn} (¥${rows[0].total.toFixed(2)}). The top ${rows.length} categories total ¥${total.toFixed(2)}. CockroachDB vector search also retrieved ${semanticRows.length} semantically related line items as memory evidence.`
+          : `最近账本里最主要的消费是 ${topCategory}（¥${rows[0].total.toFixed(2)}）。前 ${rows.length} 类合计 ¥${total.toFixed(2)}。向量检索还找到了 ${semanticRows.length} 条语义相近明细，可作为消费记忆证据。`
+        : wantsEnglish
+          ? "There are not enough transactions to summarize yet. Scan a few receipts first."
+          : "还没有足够账目可总结。先扫几张小票试试。",
       rows,
       semanticRows,
       mode: "category_summary_with_vector_memory",
@@ -279,9 +295,13 @@ export async function spendingMemoryAnswer(question) {
   const period = isLastMonth ? "上个月" : isThisMonth ? "这个月" : "账本中";
   const sqlFound = Number(r.items) > 0;
   return {
-    answer: sqlFound
-      ? `${period}共有 ${r.items} 条${subject}明细，涉及 ${r.receipts} 张小票，合计 ¥${Number(r.total).toFixed(2)}。另外 CockroachDB 向量索引按语义召回了 ${semanticRows.length} 条相关消费记忆（前几条合计 ¥${semanticTotal.toFixed(2)}）。`
-      : `没有找到严格匹配的${subject}，但 CockroachDB 向量索引按语义召回了 ${semanticRows.length} 条相近消费记忆（前几条合计 ¥${semanticTotal.toFixed(2)}）。`,
+    answer: wantsEnglish
+      ? sqlFound
+        ? `${isLastMonth ? "Last month" : isThisMonth ? "This month" : "In your ledger"}, I found ${r.items} ${isCoffee ? "coffee-related" : isDelivery ? "dining and delivery" : "matching"} line items across ${r.receipts} receipts, totaling ¥${Number(r.total).toFixed(2)}. CockroachDB vector search also retrieved ${semanticRows.length} related spending memories (¥${semanticTotal.toFixed(2)} across the top results).`
+        : `No exact ${isCoffee ? "coffee-related" : isDelivery ? "dining and delivery" : "matching"} items were found, but CockroachDB vector search retrieved ${semanticRows.length} semantically related spending memories (¥${semanticTotal.toFixed(2)} across the top results).`
+      : sqlFound
+        ? `${period}共有 ${r.items} 条${subject}明细，涉及 ${r.receipts} 张小票，合计 ¥${Number(r.total).toFixed(2)}。另外 CockroachDB 向量索引按语义召回了 ${semanticRows.length} 条相关消费记忆（前几条合计 ¥${semanticTotal.toFixed(2)}）。`
+        : `没有找到严格匹配的${subject}，但 CockroachDB 向量索引按语义召回了 ${semanticRows.length} 条相近消费记忆（前几条合计 ¥${semanticTotal.toFixed(2)}）。`,
     rows,
     semanticRows,
     mode: "aggregate_with_vector_memory",
